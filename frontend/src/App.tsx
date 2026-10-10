@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import GoalDetail from './GoalDetail'
 
 interface Goal {
   id: number
@@ -14,6 +15,7 @@ function App() {
   const [goals, setGoals] = useState<Goal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedGoalId, setSelectedGoalId] = useState<number | null>(null)
 
   // Form state
   const [showForm, setShowForm] = useState(false)
@@ -22,7 +24,6 @@ function App() {
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  // Fetch goals from backend
   const fetchGoals = async () => {
     try {
       setLoading(true)
@@ -32,14 +33,13 @@ function App() {
       setGoals(data.goals || [])
       setError(null)
     } catch (err) {
-      setError('Backend se connect nahi ho pa raha. Check karo backend chal raha hai.')
+      setError('Backend se connect nahi ho pa raha.')
       console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
-  // Create new goal
   const createGoal = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
@@ -65,7 +65,6 @@ function App() {
         throw new Error(errData.detail || 'Failed to create goal')
       }
 
-      // Success - reset form and refresh list
       setTitle('')
       setDescription('')
       setShowForm(false)
@@ -81,10 +80,19 @@ function App() {
     fetchGoals()
   }, [])
 
+  // If a goal is selected, show detail view
+  if (selectedGoalId !== null) {
+    return (
+      <GoalDetail
+        goalId={selectedGoalId}
+        onBack={() => setSelectedGoalId(null)}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900">
             🤖 Autonomous AI Agent Platform
@@ -94,7 +102,6 @@ function App() {
           </p>
         </div>
 
-        {/* Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-gray-500 text-sm">Total Goals</div>
@@ -112,7 +119,6 @@ function App() {
           </div>
         </div>
 
-        {/* Goals Section */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">📋 Your Goals</h2>
@@ -132,7 +138,6 @@ function App() {
             </div>
           </div>
 
-          {/* Create Goal Form */}
           {showForm && (
             <form
               onSubmit={createGoal}
@@ -197,7 +202,6 @@ function App() {
             </form>
           )}
 
-          {/* Goals List */}
           {loading && (
             <div className="text-center py-8 text-gray-500">
               Loading goals...
@@ -220,7 +224,8 @@ function App() {
             {goals.map((goal) => (
               <div
                 key={goal.id}
-                className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
+                onClick={() => setSelectedGoalId(goal.id)}
+                className="border border-gray-200 rounded-lg p-4 hover:shadow-lg hover:border-blue-300 transition cursor-pointer"
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -249,13 +254,13 @@ function App() {
                       {goal.status}
                     </span>
                   </div>
+                  <span className="text-gray-400 text-sm">Click →</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Footer */}
         <div className="mt-8 text-center text-gray-500 text-sm">
           Backend:{' '}
           <a
