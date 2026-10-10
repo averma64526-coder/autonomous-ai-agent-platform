@@ -31,3 +31,7 @@ Thumbs.db
 
 # Database
 *.sqlite3
+
+# SQLite Database
+aiagent.db
+*.db
