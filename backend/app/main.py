@@ -8,6 +8,15 @@ Run with: uvicorn app.main:app --reload
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# ─── Import models (so tables get registered) ───
+from app.models.goal import Goal
+from app.models.task import Task
+from app.models.agent import Agent
+from app.models.approval import Approval
+
+# ─── Import routers ───
+from app.api.v1.goals import router as goals_router
+
 # ─── Create FastAPI app ───
 app = FastAPI(
     title="Autonomous AI Agent Platform",
@@ -17,7 +26,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ─── CORS Middleware (allow frontend to talk to backend) ───
+# ─── CORS Middleware ───
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
@@ -26,8 +35,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ─── Include Routers ───
+app.include_router(goals_router)
 
-# ─── Health Check Endpoint ───
+
+# ─── Health Check Endpoints ───
 @app.get("/", tags=["health"])
 async def root():
     """Root endpoint - basic info"""
@@ -47,7 +59,6 @@ async def health_check():
     }
 
 
-# ─── Test Endpoint ───
 @app.get("/api/v1/ping", tags=["test"])
 async def ping():
     """Simple ping endpoint to test API"""
