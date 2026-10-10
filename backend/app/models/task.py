@@ -50,6 +50,7 @@ class Task(Base):
     # Relationships
     goal = relationship("Goal", back_populates="tasks")
     approvals = relationship("Approval", back_populates="task", cascade="all, delete-orphan")
+    logs = relationship("AgentLog", back_populates="task", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
-        return f"<Task(id={self.id}, title='{self.title}', status={self.status})>"
+        return f"<Task(id={self.id}, title=\'{self.title}\', status={self.status})>"

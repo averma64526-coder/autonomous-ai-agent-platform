@@ -43,3 +43,10 @@ class DecomposeResponse(BaseModel):
     goal_id: int
     tasks_created: int
     tasks: List[TaskRead]
+class TaskExecuteResponse(BaseModel):
+    """Response for task execution."""
+    task_id: int
+    status: TaskStatus
+    result: Optional[str] = None
+    steps: List[str] = []
+    confidence: float = 0.0

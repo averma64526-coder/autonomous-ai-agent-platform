@@ -16,7 +16,7 @@ from app.models.approval import Approval
 
 # ─── Import routers ───
 from app.api.v1.goals import router as goals_router
-
+from app.api.v1.tasks import router as tasks_router
 # ─── Create FastAPI app ───
 app = FastAPI(
     title="Autonomous AI Agent Platform",
@@ -37,7 +37,7 @@ app.add_middleware(
 
 # ─── Include Routers ───
 app.include_router(goals_router)
-
+app.include_router(tasks_router)
 
 # ─── Health Check Endpoints ───
 @app.get("/", tags=["health"])
