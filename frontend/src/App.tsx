@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import GoalDetail from './GoalDetail'
+import Approvals from './Approvals'
 
 interface Goal {
   id: number
@@ -16,8 +17,9 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedGoalId, setSelectedGoalId] = useState<number | null>(null)
+  const [showApprovals, setShowApprovals] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
 
-  // Form state
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -40,15 +42,25 @@ function App() {
     }
   }
 
+  const fetchPendingApprovals = async () => {
+    try {
+      const res = await fetch(`${API_URL}/approvals/pending`)
+      if (res.ok) {
+        const data = await res.json()
+        setPendingCount(data.length || 0)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   const createGoal = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
-
     if (!title.trim()) {
       setFormError('Title zaroori hai')
       return
     }
-
     try {
       setCreating(true)
       const res = await fetch(`${API_URL}/goals`, {
@@ -59,12 +71,10 @@ function App() {
           description: description.trim() || null,
         }),
       })
-
       if (!res.ok) {
         const errData = await res.json()
         throw new Error(errData.detail || 'Failed to create goal')
       }
-
       setTitle('')
       setDescription('')
       setShowForm(false)
@@ -78,14 +88,29 @@ function App() {
 
   useEffect(() => {
     fetchGoals()
+    fetchPendingApprovals()
   }, [])
 
-  // If a goal is selected, show detail view
   if (selectedGoalId !== null) {
     return (
       <GoalDetail
         goalId={selectedGoalId}
-        onBack={() => setSelectedGoalId(null)}
+        onBack={() => {
+          setSelectedGoalId(null)
+          fetchGoals()
+          fetchPendingApprovals()
+        }}
+      />
+    )
+  }
+
+  if (showApprovals) {
+    return (
+      <Approvals
+        onBack={() => {
+          setShowApprovals(false)
+          fetchPendingApprovals()
+        }}
       />
     )
   }
@@ -93,13 +118,26 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">
-            🤖 Autonomous AI Agent Platform
-          </h1>
-          <p className="text-gray-600 mt-2">
-            AI-powered autonomous agent system
-          </p>
+        <div className="mb-8 flex justify-between items-start">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900">
+              🤖 Autonomous AI Agent Platform
+            </h1>
+            <p className="text-gray-600 mt-2">
+              AI-powered autonomous agent system
+            </p>
+          </div>
+          <button
+            onClick={() => setShowApprovals(true)}
+            className="relative px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 transition font-medium"
+          >
+            👤 Approvals
+            {pendingCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+                {pendingCount}
+              </span>
+            )}
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -114,8 +152,10 @@ function App() {
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-gray-500 text-sm">Port</div>
-            <div className="text-lg font-semibold text-gray-700">8000</div>
+            <div className="text-gray-500 text-sm">Pending Approvals</div>
+            <div className="text-lg font-semibold text-orange-600">
+              {pendingCount}
+            </div>
           </div>
         </div>
 
@@ -146,13 +186,11 @@ function App() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 ✨ Create New Goal
               </h3>
-
               {formError && (
                 <div className="mb-4 bg-red-100 border border-red-300 text-red-700 p-3 rounded text-sm">
                   {formError}
                 </div>
               )}
-
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Title *
@@ -167,7 +205,6 @@ function App() {
                   maxLength={255}
                 />
               </div>
-
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Description (optional)
@@ -181,7 +218,6 @@ function App() {
                   disabled={creating}
                 />
               </div>
-
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -259,16 +295,6 @@ function App() {
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="mt-8 text-center text-gray-500 text-sm">
-          Backend:{' '}
-          <a
-            href="http://localhost:8000/docs"
-            className="text-blue-600 hover:underline"
-          >
-            http://localhost:8000/docs
-          </a>
         </div>
       </div>
     </div>
