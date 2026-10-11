@@ -45,8 +45,11 @@ function GoalDetail({ goalId, onBack }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [decomposeError, setDecomposeError] = useState<string | null>(null)
   const [executingTaskId, setExecutingTaskId] = useState<number | null>(null)
+  const [verifyingTaskId, setVerifyingTaskId] = useState<number | null>(null)
+  const [recoveringTaskId, setRecoveringTaskId] = useState<number | null>(null)
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null)
   const [showLogs, setShowLogs] = useState(true)
+  const [verifyResult, setVerifyResult] = useState<any>(null)
 
   const fetchData = async () => {
     try {
@@ -125,6 +128,49 @@ function GoalDetail({ goalId, onBack }: Props) {
       alert('Execution error: ' + err.message)
     } finally {
       setExecutingTaskId(null)
+    }
+  }
+
+  const verifyTask = async (taskId: number) => {
+    try {
+      setVerifyingTaskId(taskId)
+      const res = await fetch(`${API_URL}/tasks/${taskId}/verify`, {
+        method: 'POST',
+      })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.detail || 'Verification failed')
+      }
+
+      const data = await res.json()
+      setVerifyResult(data)
+      await fetchData()
+    } catch (err: any) {
+      alert('Verification error: ' + err.message)
+    } finally {
+      setVerifyingTaskId(null)
+    }
+  }
+
+  const recoverTask = async (taskId: number) => {
+    try {
+      setRecoveringTaskId(taskId)
+      const res = await fetch(`${API_URL}/tasks/${taskId}/recover`, {
+        method: 'POST',
+      })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.detail || 'Recovery failed')
+      }
+
+      await fetchData()
+      setExpandedTaskId(taskId)
+    } catch (err: any) {
+      alert('Recovery error: ' + err.message)
+    } finally {
+      setRecoveringTaskId(null)
     }
   }
 
@@ -285,8 +331,12 @@ function GoalDetail({ goalId, onBack }: Props) {
           <div className="space-y-3">
             {tasks.map((task) => {
               const isExecuting = executingTaskId === task.id
+              const isVerifying = verifyingTaskId === task.id
+              const isRecovering = recoveringTaskId === task.id
               const isExpanded = expandedTaskId === task.id
               const canExecute = task.status === 'pending'
+              const canVerify = task.status === 'completed'
+              const canRecover = task.status === 'completed' && task.error
 
               return (
                 <div
@@ -321,6 +371,26 @@ function GoalDetail({ goalId, onBack }: Props) {
                               className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition disabled:opacity-50"
                             >
                               {isExecuting ? '⏳ Executing...' : '⚡ Execute'}
+                            </button>
+                          )}
+
+                          {canVerify && (
+                            <button
+                              onClick={() => verifyTask(task.id)}
+                              disabled={isVerifying}
+                              className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition disabled:opacity-50"
+                            >
+                              {isVerifying ? '⏳ Verifying...' : '✅ Verify'}
+                            </button>
+                          )}
+
+                          {canRecover && (
+                            <button
+                              onClick={() => recoverTask(task.id)}
+                              disabled={isRecovering}
+                              className="text-xs px-3 py-1 bg-orange-600 text-white rounded hover:bg-orange-700 transition disabled:opacity-50"
+                            >
+                              {isRecovering ? '⏳ Recovering...' : '🔧 Recover'}
                             </button>
                           )}
 
@@ -362,7 +432,63 @@ function GoalDetail({ goalId, onBack }: Props) {
           </div>
         </div>
 
-        {/* Activity Feed */}
+        {/* Verify Result Modal */}
+        {verifyResult && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6 border-2 border-purple-200">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                ✅ Verification Result
+              </h2>
+              <button
+                onClick={() => setVerifyResult(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600">Task ID:</span>
+                <span className="font-mono text-sm">#{verifyResult.task_id}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600">Status:</span>
+                <span
+                  className={`text-xs px-2 py-1 rounded ${
+                    verifyResult.is_valid
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}
+                >
+                  {verifyResult.is_valid ? '✅ PASSED' : '❌ FAILED'}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600">Score:</span>
+                <span className="font-bold text-lg">
+                  {(verifyResult.score * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 mb-1">Feedback:</div>
+                <div className="text-gray-800 bg-gray-50 p-3 rounded text-sm">
+                  {verifyResult.feedback}
+                </div>
+              </div>
+              {verifyResult.issues && verifyResult.issues.length > 0 && (
+                <div>
+                  <div className="text-sm text-gray-600 mb-1">Issues:</div>
+                  <ul className="text-red-600 text-sm list-disc list-inside bg-red-50 p-3 rounded">
+                    {verifyResult.issues.map((issue: string, i: number) => (
+                      <li key={i}>{issue}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-gray-900">

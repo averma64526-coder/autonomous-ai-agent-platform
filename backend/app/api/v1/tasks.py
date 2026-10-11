@@ -1,5 +1,5 @@
 ﻿"""
-Task API routes - execute tasks and list logs.
+Task API routes - execute, verify, recover tasks and list logs.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,10 +7,12 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.models.agent_log import AgentLog
 from app.schemas.task import TaskRead, TaskExecuteResponse
 from app.services.executor import executor_agent
+from app.services.verifier import verifier_agent
+from app.services.critic import critic_agent
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -44,11 +46,7 @@ def get_task(task_id: int, db: Session = Depends(get_db)):
 # --- EXECUTE TASK (AI) ---
 @router.post("/{task_id}/execute", response_model=TaskExecuteResponse)
 def execute_task(task_id: int, db: Session = Depends(get_db)):
-    """
-    Execute a task using AI.
-    The result is saved to the database and logged.
-    """
-    # 1. Get task
+    """Execute a task using AI."""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(
@@ -56,14 +54,12 @@ def execute_task(task_id: int, db: Session = Depends(get_db)):
             detail=f"Task with id {task_id} not found",
         )
 
-    # 2. Check if already completed
     if task.status.value in ("completed", "running"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Task is already {task.status.value}",
         )
 
-    # 3. Execute using AI
     try:
         result = executor_agent.execute(task=task, db=db)
     except Exception as e:
@@ -72,7 +68,6 @@ def execute_task(task_id: int, db: Session = Depends(get_db)):
             detail=f"Execution failed: {str(e)}",
         )
 
-    # 4. Reload task
     db.refresh(task)
 
     return TaskExecuteResponse(
@@ -82,6 +77,80 @@ def execute_task(task_id: int, db: Session = Depends(get_db)):
         steps=result.get("steps", []),
         confidence=result.get("confidence", 0.0),
     )
+
+
+# --- VERIFY TASK (AI) ---
+@router.post("/{task_id}/verify")
+def verify_task(task_id: int, db: Session = Depends(get_db)):
+    """Verify a completed task's result using AI."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with id {task_id} not found",
+        )
+
+    if task.status != TaskStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Task must be completed to verify. Current status: {task.status.value}",
+        )
+
+    try:
+        result = verifier_agent.verify(task=task, db=db)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Verification failed: {str(e)}",
+        )
+
+    db.refresh(task)
+
+    return {
+        "task_id": task.id,
+        "status": task.status.value,
+        "is_valid": result["is_valid"],
+        "score": result["score"],
+        "issues": result["issues"],
+        "feedback": result["feedback"],
+    }
+
+
+# --- RECOVER TASK (AI) ---
+@router.post("/{task_id}/recover")
+def recover_task(task_id: int, db: Session = Depends(get_db)):
+    """Recover a failed task using AI."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with id {task_id} not found",
+        )
+
+    if task.status == TaskStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Task has not been executed yet. Execute it first.",
+        )
+
+    try:
+        result = critic_agent.recover(task=task, db=db)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Recovery failed: {str(e)}",
+        )
+
+    db.refresh(task)
+
+    return {
+        "task_id": task.id,
+        "status": task.status.value,
+        "fix_strategy": result["fix_strategy"],
+        "steps": result["steps"],
+        "result": result["result"],
+        "confidence": result["confidence"],
+    }
 
 
 # --- LIST LOGS FOR A TASK ---
